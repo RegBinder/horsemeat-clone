@@ -105,9 +105,9 @@ class Dispatcher(object):
 
             # Update the signed-in user's session expires column.
             if req.user:
-
-                new_expires_time = req.session.maybe_update_session_expires_time(
-                    self.pgconn)
+                if not req.do_not_update_session_expires_time:
+                    new_expires_time = req.session.maybe_update_session_expires_time(
+                        self.pgconn)
 
             self.dbconn.commit()
 
