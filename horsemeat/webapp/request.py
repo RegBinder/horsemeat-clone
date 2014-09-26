@@ -16,8 +16,6 @@ import wsgiref.util
 
 from werkzeug.wrappers import Request as WerkzeugRequest
 
-from horsemeat.model import session
-
 log = logging.getLogger(__name__)
 
 class Request(collections.MutableMapping):
@@ -247,11 +245,11 @@ class Request(collections.MutableMapping):
         """
         When the browser sends a header like this::
 
-            Cookie: redirect-to=http://horsemeat.com/my-account
+            Cookie: redirect-to=http://example.com/my-account
 
         this property will return::
 
-            http://horsemeat.com/my-account
+            http://example.com/my-account
 
         """
 
@@ -408,21 +406,21 @@ class Request(collections.MutableMapping):
     def session(self):
 
         """
-        Return the session if the ID is in the cookie, and the hexdigest
+        Return the session if the UUID is in the cookie, and the hexdigest
         checks out, and the database says it ain't expired yet.
         """
 
         if 'session' in self:
             return self['session']
 
-        elif self.parsed_cookie and 'session_id' in self.parsed_cookie:
+        elif self.parsed_cookie and 'session_uuid' in self.parsed_cookie:
 
-            session_id = self.parsed_cookie['session_id'].value
+            session_uuid = self.parsed_cookie['session_uuid'].value
             session_hexdigest = self.parsed_cookie['session_hexdigest'].value
 
             calculated_hexdigest = hmac.HMAC(
                 self.config_wrapper.app_secret,
-                str(session_id)).hexdigest()
+                str(session_uuid)).hexdigest()
 
             # Catch session IDs that have been tampered with.  There
             # really ought to be a way to do this in the SQL query,
@@ -431,18 +429,19 @@ class Request(collections.MutableMapping):
 
             if session_hexdigest != calculated_hexdigest:
                 log.info("Caught a session with an invalid HMAC!")
-                self['session_id'] = None
+                self['session_uuid'] = None
                 return
 
-            # Retrieve the session data from the database.
-            cursor = self.pgconn.cursor()
-
-            cursor.execute(textwrap.dedent("""
+            qry = textwrap.dedent("""
                 select (s.*)::horsemeat_sessions as ts
                 from horsemeat_sessions s
-                where s.session_id = (%s)
+                where s.session_uuid = (%s)
                 and s.expires > current_timestamp
-                """), [session_id])
+                """)
+
+            cursor = self.pgconn.cursor()
+
+            cursor.execute(qry, [session_uuid])
 
             if cursor.rowcount == 1:
                 s = cursor.fetchone().ts
@@ -451,41 +450,6 @@ class Request(collections.MutableMapping):
 
         else:
             self['session'] = None
-
-
-    @property
-    def global_session_data(self):
-
-        if 'global_session_data' in self:
-            return self['global_session_data']
-
-        elif not self.session_namespaces \
-        or 'global' not in self.session_namespaces:
-            return
-
-        else:
-            self['global_session_data'] = self.session_namespaces['global']
-            return self['global_session_data']
-
-
-    @property
-    def session_namespaces(self):
-
-        if 'session_namespaces' in self:
-            return self['session_namespaces']
-
-        elif not self.session:
-            return
-
-        else:
-
-            d = session.get_all_session_namespaces(
-                self.pgconn,
-                self.session.session_id)
-
-            self['session_namespaces'] = d
-
-            return d
 
 
     @property
@@ -592,6 +556,19 @@ class Request(collections.MutableMapping):
             self['json'] = None
             return self.json
 
+    @property
+    def client_IP_address(self):
+
+        if 'HTTP_X_FORWARDED_FOR' in self:
+            return self['HTTP_X_FORWARDED_FOR'].strip()
+
+        elif 'REMOTE_ADDR' in self:
+            return self['REMOTE_ADDR'].strip()
+
+
+    @property
+    def is_JSON(self):
+        return 'json' in self.CONTENT_TYPE.lower()
 
 class BiggerThanMemoryBuffer(ValueError):
 
@@ -601,7 +578,6 @@ class BiggerThanMemoryBuffer(ValueError):
     """
 
 class LineOne(object):
-
 
     """
     Pretty much a boring old string, but can be compared against a

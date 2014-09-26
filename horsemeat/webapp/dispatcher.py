@@ -6,7 +6,6 @@ import datetime
 import importlib
 import inspect
 import logging
-import pdb
 import sys
 import warnings
 import traceback
@@ -38,19 +37,21 @@ class Dispatcher(object):
 
         raise NotImplementedError
 
+    @abc.abstractproperty
+    def error_page(self):
+
+        raise NotImplementedError
 
 
-    def __init__(self, jinja2_environment, dbconn, config_wrapper):
+    def __init__(self, jinja2_environment, pgconn, config_wrapper):
 
         self.jinja2_environment = jinja2_environment
-        self.dbconn = dbconn
+        self.pgconn = pgconn
         self.config_wrapper = config_wrapper
 
         self.handlers = []
         self.make_handlers()
-
-        self.error_page = self.jinja2_environment.get_template(
-            'framework_templates/error.html')
+        self.run_all_on_startup_methods()
 
         log.info("Dispatcher __init__ complete!  Framework is ready.")
 
@@ -58,9 +59,6 @@ class Dispatcher(object):
     def cw(self):
         return self.config_wrapper
 
-    @property
-    def pgconn(self):
-        return self.dbconn
 
     def __call__(self, environ, start_response):
 
@@ -72,7 +70,10 @@ class Dispatcher(object):
 
         try:
 
-            req = self.request_class(self.dbconn, self.config_wrapper, environ)
+            req = self.request_class(
+                self.pgconn,
+                self.config_wrapper,
+                environ)
 
             # TODO: Figure out if there is some more elegant approach to
             # making the request object visible in the template.
@@ -109,7 +110,7 @@ class Dispatcher(object):
                     new_expires_time = req.session.maybe_update_session_expires_time(
                         self.pgconn)
 
-            self.dbconn.commit()
+            self.pgconn.commit()
 
             start_response(resp.status, resp.headers)
 
@@ -122,7 +123,7 @@ class Dispatcher(object):
 
         except Exception, ex:
 
-            self.dbconn.rollback()
+            self.pgconn.rollback()
             log.critical(ex, exc_info=1)
 
             if self.cw.launch_debugger_on_error:
@@ -241,24 +242,6 @@ class Dispatcher(object):
             log.critical(ex, exc_info=1)
             raise
 
-    def make_handler(self, s):
-
-        """
-        Don't get this confused with the other method named
-        make_handlers!
-        """
-
-        # TODO: rename this to something that won't be confused with
-        # make_handlers.
-
-        cls = self.convert_string_to_class(s)
-
-        return cls(
-            self.jinja2_environment,
-            self.dbconn,
-            self.config_wrapper,
-            self)
-
 
     @staticmethod
     def convert_string_to_class(s):
@@ -293,7 +276,6 @@ class Dispatcher(object):
 
         return obj
 
-
     def make_handlers_from_module_string(self, s):
 
         m = importlib.import_module(s)
@@ -308,6 +290,11 @@ class Dispatcher(object):
         #     virtual methods.
 
         # 3.  Instantiate all the classes in the filtered list.
+
+        # TODO: stop passing in lists of modules.  Pass in lists of
+        # classes, and then we won't need this wacky complex logic to
+        # ignore some classes we get.  And we also will provide more
+        # control about the order.
 
         return [cls(self.config_wrapper, self)
 
@@ -327,7 +314,22 @@ class Dispatcher(object):
             and getattr(cls.route, '__isabstractmethod__', False) is False
             ]
 
+
     @abc.abstractmethod
     def make_handlers(self):
 
         raise NotImplementedError
+
+
+    def run_all_on_startup_methods(self):
+
+        for h in self.handlers:
+
+            if hasattr(h, 'on_startup') \
+            and inspect.ismethod(h.on_startup):
+
+                h.on_startup()
+
+        self.cw.get_pgconn().commit()
+
+        log.info("All on-startup methods ran and database committed.")

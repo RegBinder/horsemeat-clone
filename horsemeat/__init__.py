@@ -5,7 +5,7 @@ import json
 import pprint
 import uuid
 
-__version__ = '0.3.6'
+__version__ = '2.3.0'
 
 class HorsemeatJSONEncoder(json.JSONEncoder):
 
@@ -29,6 +29,7 @@ class HorsemeatJSONEncoder(json.JSONEncoder):
             return dict(lower=obj.lower, upper=obj.upper)
 
         # Stick your own type check stuff here.
+        # End of your own stuff.
 
         else:
             return json.JSONEncoder.default(self, obj)
