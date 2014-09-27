@@ -53,6 +53,9 @@ class Dispatcher(object):
         self.make_handlers()
         self.run_all_on_startup_methods()
 
+        self.error_page = self.jinja2_environment.get_template(
+            'framework_templates/error.html')
+
         log.info("Dispatcher __init__ complete!  Framework is ready.")
 
     @property
