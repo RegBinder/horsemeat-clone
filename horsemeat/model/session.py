@@ -34,7 +34,7 @@ class SessionInserter(object):
                 %(redirect_to_this_url)s
             )
 
-            returning session_uuid""")
+            returning session_id""")
 
     @property
     def bound_variables(self):
@@ -52,7 +52,7 @@ class SessionInserter(object):
 
         return cursor.fetchone()
 
-def extract_session_uuid(HTTP_COOKIE, secret):
+def extract_session_id(HTTP_COOKIE, secret):
 
     """
     Return the session ID if everything works out.
@@ -61,9 +61,9 @@ def extract_session_uuid(HTTP_COOKIE, secret):
     log.debug('HTTP_COOKIE is %s' % HTTP_COOKIE)
     log.debug('secret is %s' % secret)
 
-def set_project_id_in_session(pgconn, session_uuid, project_id):
+def set_project_id_in_session(pgconn, session_id, project_id):
 
-    cursor = get_one_session_namespace(pgconn, session_uuid, 'global')
+    cursor = get_one_session_namespace(pgconn, session_id, 'global')
 
     if cursor.rowcount:
 
@@ -73,9 +73,9 @@ def set_project_id_in_session(pgconn, session_uuid, project_id):
         cursor.execute(textwrap.dedent("""
             update horsemeat_session_data
             set session_data = (%s)
-            where session_uuid = (%s)
+            where session_id = (%s)
             and namespace = (%s)
-            """), [session_data, session_uuid, 'global'])
+            """), [session_data, session_id, 'global'])
 
     else:
 
@@ -85,52 +85,52 @@ def set_project_id_in_session(pgconn, session_uuid, project_id):
 
         cursor.execute(textwrap.dedent("""
             insert into horsemeat_session_data
-            (session_uuid, namespace, session_data)
+            (session_id, namespace, session_data)
             values
             (%s, %s, %s)
-            """), [session_uuid, 'global', session_data])
+            """), [session_id, 'global', session_data])
 
 
-def get_all_session_namespaces(pgconn, session_uuid):
+def get_all_session_namespaces(pgconn, session_id):
 
     cursor = pgconn.cursor()
 
     cursor.execute(textwrap.dedent("""
-        select session_uuid, namespace, session_data, inserted,
+        select session_id, namespace, session_data, inserted,
         updated
 
         from horsemeat_session_data
 
-        where session_uuid = (%s)
-        """), [session_uuid])
+        where session_id = (%s)
+        """), [session_id])
 
     d = dict()
 
-    for session_uuid, namespace, session_data, inserted, updated in cursor:
+    for session_id, namespace, session_data, inserted, updated in cursor:
         d[namespace] = session_data
 
     return d
 
 
-def get_one_session_namespace(pgconn, session_uuid, namespace):
+def get_one_session_namespace(pgconn, session_id, namespace):
 
     cursor = pgconn.cursor()
 
     cursor.execute(textwrap.dedent("""
-        select session_uuid, namespace, session_data, inserted,
+        select session_id, namespace, session_data, inserted,
         updated
 
         from horsemeat_session_data
 
-        where session_uuid = (%s)
+        where session_id = (%s)
         and namespace = (%s)
-        """), [session_uuid, namespace])
+        """), [session_id, namespace])
 
     return cursor
 
-def set_binder_id_in_session(pgconn, session_uuid, binder_id):
+def set_binder_id_in_session(pgconn, session_id, binder_id):
 
-    cursor = get_one_session_namespace(pgconn, session_uuid, 'global')
+    cursor = get_one_session_namespace(pgconn, session_id, 'global')
 
     if cursor.rowcount:
 
@@ -140,9 +140,9 @@ def set_binder_id_in_session(pgconn, session_uuid, binder_id):
         cursor.execute(textwrap.dedent("""
             update horsemeat_session_data
             set session_data = (%s)
-            where session_uuid = (%s)
+            where session_id = (%s)
             and namespace = (%s)
-            """), [json.dumps(session_data), session_uuid, 'global'])
+            """), [json.dumps(session_data), session_id, 'global'])
 
     else:
 
@@ -152,10 +152,10 @@ def set_binder_id_in_session(pgconn, session_uuid, binder_id):
 
         cursor.execute(textwrap.dedent("""
             insert into horsemeat_session_data
-            (session_uuid, namespace, session_data)
+            (session_id, namespace, session_data)
             values
             (%s, %s, %s)
-            """), [session_uuid, 'global', json.dumps(session_data)])
+            """), [session_id, 'global', json.dumps(session_data)])
 
 
 class SessionFactory(psycopg2.extras.CompositeCaster):
@@ -166,10 +166,10 @@ class SessionFactory(psycopg2.extras.CompositeCaster):
 
 class Session(object):
 
-    def __init__(self, session_uuid, expires, person_id, news_message,
+    def __init__(self, session_id, expires, person_id, news_message,
         redirect_to_url, inserted, updated):
 
-        self.session_uuid = session_uuid
+        self.session_id = session_id
         self.expires = expires
         self.person_id = person_id
         self.news_message = news_message
@@ -184,10 +184,10 @@ class Session(object):
         cursor.execute(textwrap.dedent("""
             update horsemeat_sessions
             set expires = default
-            where session_uuid = (%(session_uuid)s)
+            where session_id = (%(session_id)s)
             and expires > current_timestamp
             returning expires
-        """), {'session_uuid': self.session_uuid})
+        """), {'session_id': self.session_id})
 
         if cursor.rowcount:
             return cursor.fetchone().expires
@@ -200,9 +200,9 @@ class Session(object):
         cursor.execute(textwrap.dedent("""
             select session_data
             from horsemeat_session_data
-            where session_uuid = %s
+            where session_id = %s
             and namespace = %s
-            """), [self.session_uuid, namespace])
+            """), [self.session_id, namespace])
 
         if cursor.rowcount:
             return cursor.fetchone().session_data
@@ -221,9 +221,9 @@ class Session(object):
 
             cursor.execute(textwrap.dedent("""
                 delete from horsemeat_session_data
-                where session_uuid = %s
+                where session_id = %s
                 and namespace = %s
-                """), [self.session_uuid, namespace])
+                """), [self.session_id, namespace])
 
         return session_data
 
@@ -260,3 +260,4 @@ class Session(object):
     @property
     def __jsondata__(self):
         return self.__dict__
+

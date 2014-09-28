@@ -13,10 +13,10 @@ class NewsMessageQueryMaker(object):
     for displaying the message, but might be helpful for debugging
     or when we want to show all actions taken
     """
-    def __init__(self, news_message, session_uuid ):
+    def __init__(self, news_message, session_id ):
 
         self.news_message = news_message
-        self.session_uuid = session_uuid
+        self.session_id = session_id
 
     @property
     def insert_query(self):
@@ -24,13 +24,13 @@ class NewsMessageQueryMaker(object):
         return textwrap.dedent("""
             insert into news_messages
             (
-                session_uuid,
+                session_id,
                 news_message
             )
 
             values
             (
-                %(session_uuid)s,
+                %(session_id)s,
                 %(news_message)s
             )
 
@@ -40,7 +40,7 @@ class NewsMessageQueryMaker(object):
     def bound_variables(self):
 
         return dict(
-            session_uuid=self.session_uuid,
+            session_id=self.session_id,
             news_message=self.news_message)
 
     def insert(self, dbconn):
@@ -60,7 +60,7 @@ Pop the most recent message from this session.
 Return message and set the message has_read
 to false
 """
-def pop_news_message(pgconn, session_uuid):
+def pop_news_message(pgconn, session_id):
 
     try:
 
@@ -68,10 +68,10 @@ def pop_news_message(pgconn, session_uuid):
 
             select news_message_id, news_message
             from news_messages
-            where session_uuid = %s and has_been_read = false
+            where session_id = %s and has_been_read = false
             order by inserted
             desc limit 1;
-        """), [session_uuid])
+        """), [session_id])
 
         values = pgconn.cursor.fetchone()
 
