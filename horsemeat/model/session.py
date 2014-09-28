@@ -226,38 +226,3 @@ class Session(object):
                 """), [self.session_id, namespace])
 
         return session_data
-
-    @classmethod
-    def maybe_start_new_session_after_checking_email_and_password(cls,
-        pgconn, email_address, password):
-
-        """
-        If the email address and password match a row in the people
-        table, insert a new session and return it.
-        """
-
-        cursor = pgconn.cursor()
-
-        cursor.execute(textwrap.dedent("""
-            insert into horsemeat_sessions
-            (person_id)
-            select person_id
-            from people
-            where email_address = %(email_address)s
-            and salted_hashed_password = crypt(
-                %(password)s,
-                salted_hashed_password)
-            and person_status = 'confirmed'
-            returning (horsemeat_sessions.*)::horsemeat_sessions as gs
-            """), {
-                "email_address": email_address,
-                "password": password})
-
-
-        if cursor.rowcount:
-            return cursor.fetchone().gs
-
-    @property
-    def __jsondata__(self):
-        return self.__dict__
-

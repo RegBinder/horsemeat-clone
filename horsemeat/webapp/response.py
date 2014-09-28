@@ -426,7 +426,6 @@ class Response(object):
 
         return cls.html(x.encode('utf8'))
 
-
     def set_session_cookie(self, session_id, secret):
 
         c = Cookie.SimpleCookie()
@@ -434,5 +433,4 @@ class Response(object):
         c['session_hexdigest'] = hmac.HMAC(secret, str(session_id)).hexdigest()
 
         self.headers.append(('Set-Cookie', c.output(header='').strip()))
-
 

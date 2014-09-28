@@ -16,6 +16,8 @@ import wsgiref.util
 
 from werkzeug.wrappers import Request as WerkzeugRequest
 
+from horsemeat.model import session
+
 log = logging.getLogger(__name__)
 
 class Request(collections.MutableMapping):
@@ -171,8 +173,6 @@ class Request(collections.MutableMapping):
     @property
     def files(self):
 
-        # TODO: reconsider this -- it just hides the obvious truth.
-
         if 'request.files' not in self:
             self['request.files'] = self.wz_req.files
 
@@ -245,11 +245,11 @@ class Request(collections.MutableMapping):
         """
         When the browser sends a header like this::
 
-            Cookie: redirect-to=http://example.com/my-account
+            Cookie: redirect-to=http://horsemeat.com/my-account
 
         this property will return::
 
-            http://example.com/my-account
+            http://horsemeat.com/my-account
 
         """
 
@@ -452,6 +452,41 @@ class Request(collections.MutableMapping):
 
 
     @property
+    def global_session_data(self):
+
+        if 'global_session_data' in self:
+            return self['global_session_data']
+
+        elif not self.session_namespaces \
+        or 'global' not in self.session_namespaces:
+            return
+
+        else:
+            self['global_session_data'] = self.session_namespaces['global']
+            return self['global_session_data']
+
+
+    @property
+    def session_namespaces(self):
+
+        if 'session_namespaces' in self:
+            return self['session_namespaces']
+
+        elif not self.session:
+            return
+
+        else:
+
+            d = session.get_all_session_namespaces(
+                self.pgconn,
+                self.session.session_id)
+
+            self['session_namespaces'] = d
+
+            return d
+
+
+    @property
     def user(self):
 
         """
@@ -555,19 +590,6 @@ class Request(collections.MutableMapping):
             self['json'] = None
             return self.json
 
-    @property
-    def client_IP_address(self):
-
-        if 'HTTP_X_FORWARDED_FOR' in self:
-            return self['HTTP_X_FORWARDED_FOR'].strip()
-
-        elif 'REMOTE_ADDR' in self:
-            return self['REMOTE_ADDR'].strip()
-
-
-    @property
-    def is_JSON(self):
-        return 'json' in self.CONTENT_TYPE.lower()
 
 class BiggerThanMemoryBuffer(ValueError):
 
@@ -577,6 +599,7 @@ class BiggerThanMemoryBuffer(ValueError):
     """
 
 class LineOne(object):
+
 
     """
     Pretty much a boring old string, but can be compared against a

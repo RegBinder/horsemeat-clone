@@ -9,7 +9,6 @@ import logging.config
 import math
 import smtplib
 import sys
-import textwrap
 import traceback
 import uuid
 import warnings
@@ -131,7 +130,7 @@ class ConfigWrapper(object):
         ...     cursor = pgconn.cursor()
         ...     cursor.execute("update ...")
 
-        and the transaction will be committed when you leave the with
+        ]and the transaction will be committed when you leave the with
         block.
 
         """
@@ -203,18 +202,38 @@ class ConfigWrapper(object):
         psycopg2.extensions.register_type(psycopg2.extensions.UNICODEARRAY)
 
         if register_composite_types:
+            self.register_horsemeat_composite_types(pgconn)
+            log.debug('Registered horsemeat composite types')
             self.register_composite_types(pgconn)
-            log.debug('Registered project composite types')
+            log.debug('Registered projects composite types')
 
         return pgconn
 
-    # Make aliases because Matt can't remember stuff good.
+    # Make an alias because Matt can't remember stuff good.
     create_postgresql_connection = make_database_connection
-    make_postgresql_connection = make_database_connection
 
     @abc.abstractproperty
     def register_composite_types(self, pgconn):
+
         raise NotImplementedError
+
+
+    def register_horsemeat_composite_types(self, pgconn):
+
+        from horsemeat.model.user import PersonFactory
+
+        psycopg2.extras.register_composite('people', pgconn,
+            factory=PersonFactory)
+
+        from horsemeat.model.session import SessionFactory
+
+        psycopg2.extras.register_composite('horsemeat_sessions', pgconn,
+          factory=SessionFactory)
+
+        log.info('Just registered composite types in psycopg2')
+
+        return pgconn
+
 
     def configure_logging(self, process_type='default'):
 
@@ -351,10 +370,7 @@ class ConfigWrapper(object):
         return j
 
     def add_more_stuff_to_jinja2_globals(self):
-        log.info(textwrap.dedent("""
-            Nothing extra to add.  You can add stuff in your
-            subclass if you want to..
-            """))
+        log.info("Nothing extra to add...")
 
     def get_jinja2_environment(self):
 
@@ -362,11 +378,6 @@ class ConfigWrapper(object):
             self.make_jinja2_environment()
 
         return self.jinja2_environment
-
-    @property
-    def j(self):
-        return sef.get_jinja2_environment()
-
 
     @property
     def scheme(self):
@@ -460,6 +471,57 @@ class ConfigWrapper(object):
         return self.pyrax_connection
 
 
+    def verify_config_file(self):
+
+        """
+        This makes sure a bunch of fields are defined in the config
+        file.
+
+        It doesn't verify the data is correct.  It just verifies
+        it exists.
+
+        Returns self if file is A-OK, otherwise, raises a MissingConfig
+        exception on the first missing value.
+        """
+
+        # We could make the "important_properties" list dynamically.
+        # We could write our own decorator named "important_property"
+        # that we used instead of the regular property decorator.
+        # "important_property" would do the same thing as the regular
+        # property decorator, but it would also append the particular
+        # property to a class-level (not instance level!) array
+        # attribute.
+
+        # In fact, that's what should be done.  So, please do it.
+
+        important_properties = [
+            'database_port',
+            'database_name',
+            'database_host',
+            'database_user',
+            'database_password',
+            'pyrax_username',
+            'pyrax_api_key',
+            'smtp_host',
+            'web_host',
+        ]
+
+        log.debug('Verifying config file contents:')
+
+        for propname in important_properties:
+
+            log.debug('{0}: {1}'.format(
+                propname,
+                getattr(self, propname)))
+
+        # This else clause fires in the event that the for-loop
+        # completed.  Weird, right?  The only way to not go into the else
+        # clause below is to use a break statement.
+
+        else:
+            log.info("Config file contains all required data")
+            return self
+
     def connect_everything(self):
 
         """
@@ -487,6 +549,7 @@ class ConfigWrapper(object):
 
         self.set_as_default()
         self.configure_logging()
+        self.verify_config_file()
 
         if self.production_mode:
             self.run_production_mode_stuff()
@@ -497,11 +560,6 @@ class ConfigWrapper(object):
         return self.dispatcher_class(j, pgconn, self)
 
     def run_production_mode_stuff(self):
-
-        """
-        Subclasses can add stuff in here if they want.
-        """
-
         log.info("Nothing to do for production-mode stuff")
 
     @abc.abstractproperty

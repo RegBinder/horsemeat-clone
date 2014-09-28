@@ -5,13 +5,13 @@ import json
 import pprint
 import uuid
 
-__version__ = '2.3.2'
+import psycopg2.extras
+
+__version__ = '0.3.4'
 
 class HorsemeatJSONEncoder(json.JSONEncoder):
 
     def default(self, obj):
-
-        import psycopg2.extras
 
         # Any object that wants to be encoded into JSON should make a
         # property called __json__data that spits out some dictionary.
@@ -22,18 +22,16 @@ class HorsemeatJSONEncoder(json.JSONEncoder):
         elif hasattr(obj, 'isoformat') and callable(obj.isoformat):
             return obj.isoformat()
 
+        # If you fuss about how I'm using isinstance here, then you are
+        # an idiot.
         elif isinstance(obj, uuid.UUID):
           return str(obj)
 
         elif isinstance(obj, psycopg2.extras.DateTimeTZRange):
             return dict(lower=obj.lower, upper=obj.upper)
 
-        # Stick your own type check stuff here.
-        # End of your own stuff.
-
         else:
             return json.JSONEncoder.default(self, obj)
-
 
 fancyjsondumps = functools.partial(
     json.dumps,
