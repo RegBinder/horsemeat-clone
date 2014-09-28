@@ -406,21 +406,21 @@ class Request(collections.MutableMapping):
     def session(self):
 
         """
-        Return the session if the UUID is in the cookie, and the hexdigest
+        Return the session if the ID is in the cookie, and the hexdigest
         checks out, and the database says it ain't expired yet.
         """
 
         if 'session' in self:
             return self['session']
 
-        elif self.parsed_cookie and 'session_uuid' in self.parsed_cookie:
+        elif self.parsed_cookie and 'session_id' in self.parsed_cookie:
 
-            session_uuid = self.parsed_cookie['session_uuid'].value
+            session_id = self.parsed_cookie['session_id'].value
             session_hexdigest = self.parsed_cookie['session_hexdigest'].value
 
             calculated_hexdigest = hmac.HMAC(
                 self.config_wrapper.app_secret,
-                str(session_uuid)).hexdigest()
+                str(session_id)).hexdigest()
 
             # Catch session IDs that have been tampered with.  There
             # really ought to be a way to do this in the SQL query,
@@ -429,19 +429,18 @@ class Request(collections.MutableMapping):
 
             if session_hexdigest != calculated_hexdigest:
                 log.info("Caught a session with an invalid HMAC!")
-                self['session_uuid'] = None
+                self['session_id'] = None
                 return
 
-            qry = textwrap.dedent("""
-                select (s.*)::horsemeat_sessions as ts
-                from horsemeat_sessions s
-                where s.session_uuid = (%s)
-                and s.expires > current_timestamp
-                """)
-
+            # Retrieve the session data from the database.
             cursor = self.pgconn.cursor()
 
-            cursor.execute(qry, [session_uuid])
+            cursor.execute(textwrap.dedent("""
+                select (s.*)::horsemeat_sessions as ts
+                from horsemeat_sessions s
+                where s.session_id = (%s)
+                and s.expires > current_timestamp
+                """), [session_id])
 
             if cursor.rowcount == 1:
                 s = cursor.fetchone().ts
