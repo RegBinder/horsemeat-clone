@@ -46,6 +46,8 @@ class Dispatcher(object):
         self.dbconn = dbconn
         self.config_wrapper = config_wrapper
 
+        self.do_not_update_session_expires_time = False
+
         self.handlers = []
         self.make_handlers()
 
