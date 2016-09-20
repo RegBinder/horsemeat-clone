@@ -126,6 +126,7 @@ class Dispatcher(object):
             self.pgconn.rollback()
             log.critical(ex, exc_info=1)
 
+
             if self.cw.launch_debugger_on_error:
                 raise
 
@@ -135,6 +136,11 @@ class Dispatcher(object):
                 log.critical('post body: {0}'.format(req.wz_req.form))
 
                 log.critical(environ)
+
+                if self.cw.enable_new_relic_logging:
+                    import newrelic.agent
+                    newrelic.agent.record_exception(ex, sys.exc_info()[2])
+                    log.info('logged exception to newrelic')
 
                 start_response(
                     '500 ERROR',

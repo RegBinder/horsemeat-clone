@@ -22,10 +22,12 @@ setup(
     install_requires=[
         'decorator',
         'PyYAML',
-        'jinja2==2.6',
+        'jinja2 >= 2.7.3',
         'psycopg2',
         'pyrax',
         'Werkzeug',
         'clepy',
+        'newrelic'
+
     ],
 )
